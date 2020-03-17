@@ -1,0 +1,73 @@
+<configparser.ConfigParser object at 0x7fbda1718550>
+
+
+resource/woz3/data_split/Boo_ResDataSplitRand0925.json
+***** DATA INFO *****
+Using 100% of training data
+BATCH SIZE: 256
+Train: 25980 turns
+Valid: 3128 turns
+Test: 3113 turns
+# of batches: Train 101 Valid 12 Test 12
+*************************
+
+Using deep version with 1 layer
+Using sclstm as decoder with module list!
+do not support re-train model, please make sure the model do not exist before training
+
+***** MODEL INFO *****
+MODEL PATH: ./sclstm.pt
+SIZE OF HIDDEN: 100
+# of LAYER: 1
+SAMPLE/BEAM SIZE: 1
+*************************
+
+Epoch 0 (n_layer 1)
+Train Loss: 4.595 | Time: 77.1
+valid Loss: 3.614 | Slot error: 110.087 | Time: 22.0
+redunt: 1538.0, miss: 1878.0, total: 3103.0
+Best loss: 3.614, AND Save model!
+----------------------------------------
+Epoch 1 (n_layer 1)
+Train Loss: 2.821 | Time: 77.6
+valid Loss: 2.349 | Slot error: 68.869 | Time: 22.1
+redunt: 762.0, miss: 1375.0, total: 3103.0
+Best loss: 2.349, AND Save model!
+----------------------------------------
+Epoch 2 (n_layer 1)
+Train Loss: 2.123 | Time: 75.7
+valid Loss: 2.004 | Slot error: 52.498 | Time: 21.2
+redunt: 628.0, miss: 1001.0, total: 3103.0
+Best loss: 2.004, AND Save model!
+----------------------------------------
+Epoch 3 (n_layer 1)
+Train Loss: 1.881 | Time: 76.7
+valid Loss: 1.841 | Slot error: 33.645 | Time: 22.2
+redunt: 405.0, miss: 639.0, total: 3103.0
+Best loss: 1.841, AND Save model!
+----------------------------------------
+Epoch 4 (n_layer 1)
+Train Loss: 1.750 | Time: 77.4
+valid Loss: 1.747 | Slot error: 26.523 | Time: 21.6
+redunt: 304.0, miss: 519.0, total: 3103.0
+Best loss: 1.747, AND Save model!
+----------------------------------------
+Epoch 5 (n_layer 1)
+Train Loss: 1.663 | Time: 77.0
+valid Loss: 1.687 | Slot error: 22.301 | Time: 22.0
+redunt: 297.0, miss: 395.0, total: 3103.0
+Best loss: 1.687, AND Save model!
+----------------------------------------
+Epoch 6 (n_layer 1)
+Train Loss: 1.599 | Time: 76.1
+valid Loss: 1.635 | Slot error: 16.339 | Time: 21.5
+redunt: 200.0, miss: 307.0, total: 3103.0
+Best loss: 1.635, AND Save model!
+----------------------------------------
+Epoch 7 (n_layer 1)
+Train Loss: 1.550 | Time: 77.0
+valid Loss: 1.597 | Slot error: 13.020 | Time: 21.9
+redunt: 136.0, miss: 268.0, total: 3103.0
+Best loss: 1.597, AND Save model!
+----------------------------------------
+Epoch 8 (n_layer 1)
