@@ -14,7 +14,7 @@ import math
 from loader.dataset_woz3 import DatasetWoz3
 from model.lm_deep import LM_deep
 
-USE_CUDA = True
+USE_CUDA = False#True
 
 
 def score(feat, gen, template):
@@ -22,7 +22,7 @@ def score(feat, gen, template):
 	feat = ['d-a-s-v:Booking-Book-Day-1', 'd-a-s-v:Booking-Book-Name-1', 'd-a-s-v:Booking-Book-Name-2']
 	gen = 'xxx slot-booking-book-name xxx slot-booking-book-time'
 	'''
-	import ipdb; ipdb.set_trace()
+	#import ipdb; ipdb.set_trace()
 	das = [] # e.g. a list of d-a-s-v:Booking-Book-Day
 	with open(template) as f:
 		for line in f:
@@ -33,28 +33,36 @@ def score(feat, gen, template):
 			tok = '-'.join(line.strip().split('-')[:-1])
 			if tok not in das:
 				das.append(tok)
-
-	total, redunt, miss = 0, 0, 0
+	#import ipdb; ipdb.set_trace()
+	total, redunt, miss, extra = 0, 0, 0, 0
 	for _das in das:
 		feat_count = 0
 		das_order = [ _das+'-'+str(i) for i in range(20) ]
 		for _feat in feat:
 			if _feat in das_order:
 				feat_count += 1
+		# _das example: 'd-a-s-v:Attraction-Inform-Addr'
 		slot_tok = 'slot-'+_das.split(':')[1].lower()
 		_das = _das.replace('d-a-s-v:', '').lower().split('-')
 		#slot_tok = '@' + _das[0][:3] + '-' + _das[1] + '-' + _das[2]
-		
+
 		#slot_tok = 'slot-'+_das.split(':')[1].lower()
 
 		gen_count = gen.split().count(slot_tok)
 		diff_count = gen_count - feat_count
+		
 		if diff_count > 0:
-			redunt += diff_count
+			if feat_count == 0:
+				# feat_count == 0 i shouln't generate a this token, extra information
+				extra += diff_count
+			else:
+				# feat_count != 0 generated more than feat_count times slot_tok
+				redunt += diff_count
 		else:
 			miss += -diff_count
+
 		total += feat_count
-	return total, redunt, miss
+	return total, redunt, miss, extra
 
 
 def get_slot_error(dataset, gens, refs, sv_indexes):
@@ -67,27 +75,28 @@ def get_slot_error(dataset, gens, refs, sv_indexes):
 		count: accumulative slot error of a batch
 		countPerGen: slot error for each sample
 	'''
+	#import ipdb; ipdb.set_trace()
 	batch_size = len(gens)
 	beam_size = len(gens[0])
 	assert len(refs) == batch_size and len(sv_indexes) == batch_size
 
-	count = {'total': 0.0, 'redunt': 0.0, 'miss': 0.0}
+	count = {'total': 0.0, 'redunt': 0.0, 'miss': 0.0, 'extra': 0.0}
 	countPerGen = [ [] for _ in range(batch_size) ]
 	for batch_idx in range(batch_size):
 		for beam_idx in range(beam_size):
 			felements = [dataset.cardinality[x+dataset.dfs[2]] for x in sv_indexes[batch_idx]]
 
 			# get slot error per sample(beam)
-			total, redunt, miss = score(felements, gens[batch_idx][beam_idx], dataset.template)
+			total, redunt, miss, extra = score(felements, gens[batch_idx][beam_idx], dataset.template)
 
 			c = {}
-			for a, b in zip(['total', 'redunt', 'miss'], [total, redunt, miss]):
+			for a, b in zip(['total', 'redunt', 'miss', 'extra'], [total, redunt, miss, extra]):
 				c[a] = b
 				count[a] += b
 			countPerGen[batch_idx].append(c)
 
 	return count, countPerGen
-		
+
 
 def evaluate(config, dataset, model, data_type, beam_search, beam_size, batch_size):
 	t = time.time()
@@ -95,7 +104,7 @@ def evaluate(config, dataset, model, data_type, beam_search, beam_size, batch_si
 #	batch_size = config.getint('DATA', 'batch_size')
 
 	total_loss = 0
-	countAll = {'total': 0.0, 'redunt': 0.0, 'miss': 0.0}
+	countAll = {'total': 0.0, 'redunt': 0.0, 'miss': 0.0, 'extra': 0.0}
 	for i in range(dataset.n_batch[data_type]):
 		input_var, label_var, feats_var, lengths, refs, featStrs, sv_indexes = dataset.next_batch(data_type=data_type)
 
@@ -108,24 +117,29 @@ def evaluate(config, dataset, model, data_type, beam_search, beam_size, batch_si
 			loss = model.get_loss(label_var, lengths)
 			total_loss += loss.item()#.data[0]
 
-			# run generation for calculating slot error 
+			# run generation for calculating slot error
 			decoded_words = model(input_var, dataset, feats_var, gen=True, beam_search=False, beam_size=1)
 			countBatch, countPerGen = get_slot_error(dataset, decoded_words, refs, sv_indexes)
 
 		else: # test
 			print('decode batch {} out of {}'.format(i, dataset.n_batch[data_type]), file=sys.stderr)
 			decoded_words = model(input_var, dataset, feats_var, gen=True, beam_search=beam_search, beam_size=beam_size)
+			#import ipdb; ipdb.set_trace()
 			countBatch, countPerGen = get_slot_error(dataset, decoded_words, refs, sv_indexes)
-	
 			# print generation results
 			for batch_idx in range(batch_size):
-				print('Feat: {}'.format(featStrs[batch_idx]))
-				print('Target: {}'.format(refs[batch_idx]))
+				#print('Feat: {}'.format(featStrs[batch_idx]))
+				#print('Target: {}'.format(refs[batch_idx]))
 				for beam_idx in range(beam_size):
 					c = countPerGen[batch_idx][beam_idx]
 					s = decoded_words[batch_idx][beam_idx]
-					print('Gen{} ({},{},{}): {}'.format(beam_idx, c['redunt'], c['miss'], c['total'], s))
-				print('-----------------------------------------------------------')
+					if c['extra'] > 0:
+						print('Feat: {}'.format(featStrs[batch_idx]))
+						print('Target: {}'.format(refs[batch_idx]))
+						print('Gen{} ({},{},{},{}): {}'.format(beam_idx, c['redunt'], c['miss'], c['extra'], c['total'], s))
+						print('-----------------------------------------------------------')
+					#print('Gen{} ({},{},{},{}): {}'.format(beam_idx, c['redunt'], c['miss'], c['extra'], c['total'], s))
+				#print('-----------------------------------------------------------')
 
 		# accumulate slot error across batches
 		for _type in countAll:
@@ -133,11 +147,11 @@ def evaluate(config, dataset, model, data_type, beam_search, beam_size, batch_si
 
 	total_loss /= dataset.n_batch[data_type]
 
-	se = (countAll['redunt'] + countAll['miss']) / countAll['total'] * 100
+	se = (countAll['redunt'] + countAll['miss'] +countAll['extra']) / countAll['total'] * 100
 	print('{} Loss: {:.3f} | Slot error: {:.3f} | Time: {:.1f}'.format(data_type, total_loss, se, time.time()-t))
 	print('{} Loss: {:.3f} | Slot error: {:.3f} | Time: {:.1f}'.format(data_type, total_loss, se, time.time()-t), file=sys.stderr)
-	print('redunt: {}, miss: {}, total: {}'.format(countAll['redunt'], countAll['miss'], countAll['total']))
-	print('redunt: {}, miss: {}, total: {}'.format(countAll['redunt'], countAll['miss'], countAll['total']), file=sys.stderr)
+	print('redunt: {}, miss: {}, extra: {}, total: {}'.format(countAll['redunt'], countAll['miss'], countAll['extra'], countAll['total']))
+	print('redunt: {}, miss: {}, extra: {}, total: {}'.format(countAll['redunt'], countAll['miss'], countAll['extra'], countAll['total']), file=sys.stderr)
 	return total_loss
 
 
@@ -168,7 +182,7 @@ def train_epoch(config, dataset, model):
 def read(config, args, mode):
 	# get data
 	print('Processing data...', file=sys.stderr)
-	
+
 	# TODO: remove this constraint
 	if mode == 'test' and args.beam_search:
 		print('Set batch_size to 1 due to beam search')
@@ -182,7 +196,7 @@ def read(config, args, mode):
 	print()
 	print(args.data_split)
 	dataset = DatasetWoz3(config, args.data_split, percentage=percentage)
-
+	#import ipdb; ipdb.set_trace()
 	# get model hyper-parameters
 	# TODO: support vanilla lstm and vae
 #	model_type = args.model_type
@@ -217,7 +231,8 @@ def read(config, args, mode):
 		# load model
 		print(model_path)
 		assert os.path.isfile(model_path)
-		model.load_state_dict(torch.load(model_path))
+
+		model.load_state_dict(torch.load(model_path, map_location='cpu'))
 		if mode != 'adapt':
 			model.eval()
 
@@ -237,14 +252,14 @@ def read(config, args, mode):
 
 	return dataset, model
 
-	
+
 def train(config, args):
 #	dataset, model = read(config, args, 'train')
 	dataset, model = read(config, args, args.mode)
 	n_layer = args.n_layer
 #	model_type = args.model_type
 	model_path = args.model_path
-	
+
 	# Start training
 	print_loss_total = 0 # Reset every print_every
 	epoch = 0
@@ -317,7 +332,7 @@ def parse():
 
 	config = configparser.ConfigParser()
 	config.read('config/config.cfg')
-	
+
 	return args, config
 
 
@@ -328,7 +343,6 @@ if __name__ == '__main__':
 #	torch.cuda.manual_seed_all(1235)
 
 	args, config = parse()
-
 	# training
 	if args.mode == 'train' or args.mode == 'adapt':
 		train(config, args)
